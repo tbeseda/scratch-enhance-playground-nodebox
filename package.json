@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "start": "npx @web/dev-server --node-resolve --watch"
+  },
+  "dependencies": {
+    "@codesandbox/nodebox": "^0.1.9"
+  }
+}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhance Playground</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 1rem;
+      height: 100vh;
+      font-family: system-ui;
+    }
+
+    main {
+      margin-bottom: 1rem;
+      display: grid;
+      grid-template-columns: 2fr 3fr;
+      gap: 1rem;
+    }
+
+    iframe {
+      border: 1px solid #ccc;
+      width: 100%;
+    }
+
+    h2 {
+      margin: 0;
+    }
+
+    script#main {
+      display: block;
+      font-family: monospace;
+      font-size: 14px;
+      white-space: pre;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Enhance Playground</h1>
+  <main>
+    <div>
+      <h2>Nodebox</h2>
+      <iframe id="nodebox"></iframe>
+    </div>
+    <div>
+      <h2>Preview</h2>
+      <iframe id="preview"></iframe>
+    </div>
+  </main>
+
+  <h2>Server Code</h2>
+  <script type="javascript/Nodebox" id="main">
+import http from 'http'
+
+import enhance from '@enhance/ssr'
+import importTransform from '@enhance/import-transform'
+import styleTransform from '@enhance/enhance-style-transform'
+
+function HelloWorld({ html, state }) {
+  const { attrs } = state
+  const { greeting='Hello World' } = attrs
+  return html`
+    <style>
+      :host {
+        display: block;
+        font-family: Comic Sans MS;
+      }
+      h1 {
+        color: red;
+      }
+    </style>
+
+    <h1>${greeting}</h1>
+  `
+}
+
+const htm = enhance({
+  elements: {
+    'hello-world': HelloWorld,
+  },
+  scriptTransforms: [
+    // importTransform({ lookup: arc.static })
+  ],
+  styleTransforms: [
+    styleTransform
+  ],
+  initialState: {},
+})
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/html'
+  })
+  console.log('Request received')
+  res.end(htm`<hello-world greeting="Well hi!"></hello-world>`)
+})
+
+server.listen(3000, () => {
+  console.log('Server is ready!')
+})
+  </script>
+
+  <script type="module">
+import { Nodebox } from '@codesandbox/nodebox';
+
+const mainJS = document.getElementById('main').textContent;
+
+const emulator = new Nodebox({
+  iframe: document.getElementById('nodebox'),
+});
+
+await emulator.connect();
+
+await emulator.fs.init({
+  'package.json': JSON.stringify({
+    name: 'my-app',
+    dependencies: {
+      '@enhance/ssr': 'latest',
+      '@enhance/import-transform': 'latest',
+      '@enhance/enhance-style-transform': 'latest',
+    },
+  }),
+  'main.js': mainJS,
+});
+
+const shell = emulator.shell.create();
+const serverCommand = await shell.runCommand("node", ["main.js"]);
+
+const { url } = await emulator.preview.getByShellId(serverCommand.id);
+
+// Preview Iframe to see output of code
+const previewIframe = document.getElementById("preview");
+previewIframe.setAttribute("src", url);
+  </script>
+</body>
+</html>
