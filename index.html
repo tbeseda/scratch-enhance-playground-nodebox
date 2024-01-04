@@ -17,19 +17,53 @@
     }
 
     main {
-      margin-bottom: 1rem;
       display: grid;
-      grid-template-columns: 2fr 3fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 1rem;
-    }
-
-    iframe {
-      border: 1px solid #ccc;
-      width: 100%;
     }
 
     h2 {
       margin: 0;
+    }
+
+    .flex {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    iframe {
+      width: 100%;
+      height: 350px;
+      border: 1px solid #ccc;
+    }
+
+    iframe#nodebox {
+      height: 10rem;
+    }
+
+    iframe#preview {
+      height: 30rem;
+    }
+
+    textarea {
+      width: 100%;
+      height: 400px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    textarea#api {
+      height: 10rem;
+    }
+
+    textarea#elements {
+      height: 25rem;
+    }
+
+    textarea#html {
+      height: 10rem;
     }
 
     script#main {
@@ -42,101 +76,134 @@
   </style>
 </head>
 <body>
-  <h1>Enhance Playground</h1>
+  <h1>Enhance Single Route Playground</h1>
   <main>
-    <div>
-      <h2>Nodebox</h2>
-      <iframe id="nodebox"></iframe>
-    </div>
-    <div>
-      <h2>Preview</h2>
-      <iframe id="preview"></iframe>
-    </div>
-  </main>
+    <section id="editor">
+      <div>
+        <h2>API fn</h2>
+        <textarea id="api">async function ({ req }) {
+  return {
+    json: { name: 'Axol' }
+  }
+}</textarea>
+      </div>
 
-  <h2>Server Code</h2>
-  <script type="javascript/Nodebox" id="main">
-import http from 'http'
+      <div>
+        <h2>Elements</h2>
+        <textarea id="elements" placeholder='Separate elements with "---"'>function myTitle() {
+  return '<h1>Welcome!</h1>'
+}
+---
+function myGreeting({ html, state }) {
+  const { attrs, store } = state
+  const { name = 'you' } = store
+  const { greeting = 'Hello' } = attrs
 
-import enhance from '@enhance/ssr'
-import importTransform from '@enhance/import-transform'
-import styleTransform from '@enhance/enhance-style-transform'
-
-function HelloWorld({ html, state }) {
-  const { attrs } = state
-  const { greeting='Hello World' } = attrs
   return html`
     <style>
       :host {
         display: block;
         font-family: Comic Sans MS;
       }
-      h1 {
+      h2 {
         color: red;
       }
     </style>
 
-    <h1>${greeting}</h1>
-  `
-}
+    <h2>${greeting}, ${name}.</h2>`
+}</textarea>
+      </div>
 
-const htm = enhance({
-  elements: {
-    'hello-world': HelloWorld,
-  },
-  scriptTransforms: [
-    // importTransform({ lookup: arc.static })
-  ],
-  styleTransforms: [
-    styleTransform
-  ],
-  initialState: {},
-})
+      <div>
+        <h2>HTML</h2>
+        <textarea id="html"><my-title></my-title>
+<my-greeting greeting="Hi"></my-greeting></textarea>
+      </div>
+    </section>
 
-const server = http.createServer((req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/html'
+    <section id="server">
+      <div>
+        <div class="flex">
+          <h2>Nodebox "Server"</h2>
+          <button id="parse">Parse</button>
+          <button id="go">Go</button>
+        </div>
+        <iframe id="nodebox"></iframe>
+      </div>
+
+      <h2>Server Code</h2>
+      <script type="javascript/Nodebox" id="main">
+import http from 'http'
+
+import enhance from '@enhance/ssr'
+import styleTransform from '@enhance/enhance-style-transform'
+
+const server = http.createServer(async (req, res) => {
+  const store = await (__API__)(req)
+
+  const htm = enhance({
+    elements: {__ELEMENTS__},
+    styleTransforms: [ styleTransform ],
+    initialState: store.json,
   })
-  console.log('Request received')
-  res.end(htm`<hello-world greeting="Well hi!"></hello-world>`)
+
+  res.writeHead(200, { 'Content-Type': 'text/html' })
+  res.end(htm`__HTML__`)
 })
 
 server.listen(3000, () => {
   console.log('Server is ready!')
 })
-  </script>
+      </script>
+    </section>
+
+    <section>
+      <h2>Preview</h2>
+      <iframe id="preview"></iframe>
+    </section>
+  </main>
+
 
   <script type="module">
-import { Nodebox } from '@codesandbox/nodebox';
+    import { start } from '/index.js'
 
-const mainJS = document.getElementById('main').textContent;
+    const $nodeboxIframe = document.getElementById('nodebox')
+    const $previewIframe = document.getElementById('preview')
+    const $main = document.getElementById('main')
+    const $api = document.getElementById('api')
+    const $elements = document.getElementById('elements')
+    const $html = document.getElementById('html')
+    const $parse = document.getElementById('parse')
+    const $go = document.getElementById('go')
 
-const emulator = new Nodebox({
-  iframe: document.getElementById('nodebox'),
-});
+    $parse.addEventListener('click', parse)
+    $go.addEventListener('click', go)
 
-await emulator.connect();
+    function parse() {
+      let elementsList = $elements.value.split('---')
+      elementsList = elementsList.map((el) => {
+        let elementName = el.match(/function\s+(\w+)/)[1]
+        elementName = elementName.replace(/([A-Z])/g, '-$1').toLowerCase()
+        return `'${elementName}': ${el.trim()},`
+      })
 
-await emulator.fs.init({
-  'package.json': JSON.stringify({
-    name: 'my-app',
-    dependencies: {
-      '@enhance/ssr': 'latest',
-      '@enhance/import-transform': 'latest',
-      '@enhance/enhance-style-transform': 'latest',
-    },
-  }),
-  'main.js': mainJS,
-});
+      let main = $main.textContent
+      main = main.replace('__API__', $api.value)
+      main = main.replace('__ELEMENTS__', elementsList.join('\n'))
+      main = main.replace('__HTML__', $html.value)
 
-const shell = emulator.shell.create();
-const serverCommand = await shell.runCommand("node", ["main.js"]);
+      $main.textContent = main
+    }
 
-const { url } = await emulator.preview.getByShellId(serverCommand.id);
+    async function go() {
+      const main = $main.textContent
 
-// Preview Iframe to see output of code
-const previewIframe = document.getElementById("preview");
-previewIframe.setAttribute("src", url);
+      await start({
+        $nodeboxIframe,
+        $previewIframe,
+        main,
+      })
+    }
   </script>
 </body>
 </html>
